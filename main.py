@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for
 import requests
 import os
+import webbrowser
+from threading import Timer
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -12,23 +14,20 @@ TELEGRAM_TOKEN = '6422609683:AAH5FFfb-8QnmUoBQoDOt682kzilEYvB5ss'
 VK_OWNER_ID = '-189467856'
 TELEGRAM_CHAT_ID = '@alptorg'
 
-
 @app.route('/')
 def home():
     return render_template('index.html')
-
 
 @app.route('/post', methods=['POST'])
 def post():
     message = request.form['message']
     image = request.files['image'] if 'image' in request.files else None
     image_path = None
-    vk_photo_url = None
 
     if image:
         image_path = os.path.join(app.config['UPLOAD_FOLDER'], image.filename)
         image.save(image_path)
-
+    
     # Отправка поста в ВК
     if image_path:
         vk_upload_url = f'https://api.vk.com/method/photos.getWallUploadServer?access_token={VK_TOKEN}&v=5.131'
@@ -56,8 +55,6 @@ def post():
             'access_token': VK_TOKEN,
             'v': '5.131'
         })
-
-        vk_photo_url = f"https://vk.com/photo{vk_save_response['response'][0]['owner_id']}_{vk_save_response['response'][0]['id']}"
     else:
         vk_post_url = f'https://api.vk.com/method/wall.post'
         vk_response = requests.post(vk_post_url, data={
@@ -70,31 +67,23 @@ def post():
     vk_post = vk_response.json()
     vk_post_id = vk_post['response']['post_id']
     vk_post_url = f"https://vk.com/wall{VK_OWNER_ID}_{vk_post_id}"
-
-    # Отправка поста в Telegram
-    if image_path:
-        telegram_url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto'
-        with open(image_path, 'rb') as img:
-            telegram_response = requests.post(telegram_url, data={
-                'chat_id': TELEGRAM_CHAT_ID,
-                'caption': message,
-                'reply_markup': f'{{"inline_keyboard":[[{{"text":"Забрать заказ","url":"{vk_post_url}"}}]]}}'
-            }, files={'photo': img})
-    else:
-        telegram_url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
-        telegram_response = requests.post(telegram_url, data={
-            'chat_id': TELEGRAM_CHAT_ID,
-            'text': message,
-            'reply_markup': f'{{"inline_keyboard":[[{{"text":"Забрать заказ","url":"{vk_post_url}"}}]]}}'
-        })
+    
+    # Отправка поста в Telegram с кнопкой
+    telegram_url = f'https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage'
+    telegram_response = requests.post(telegram_url, data={
+        'chat_id': TELEGRAM_CHAT_ID,
+        'text': message,
+        'reply_markup': f'{{"inline_keyboard":[[{{"text":"Забрать заказ","url":"{vk_post_url}"}}]]}}'
+    })
 
     if vk_response.status_code == 200 and telegram_response.status_code == 200:
         return 'Post was successfully published!'
     else:
         return 'Failed to publish post.'
 
+def open_browser():
+    webbrowser.open_new('http://127.0.0.1:5000/')
 
 if __name__ == '__main__':
-    if not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
-    app.run(host='0.0.0.0', port=81)
+    Timer(1, open_browser).start()
+    app.run(host='0.0.0.0', port=5000)
