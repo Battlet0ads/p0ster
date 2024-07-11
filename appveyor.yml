@@ -1,0 +1,14 @@
+version: 1.0.{build}
+image: Visual Studio 2019
+
+configuration: Release
+
+build_script:
+  - cmd: python -m pip install --upgrade pip
+  - cmd: pip install pyinstaller
+  - cmd: pip install -r requirements.txt
+  - cmd: pyinstaller --onefile --add-data "templates;templates" --add-data "uploads;uploads" main.py
+
+artifacts:
+  - path: dist\*.exe
+    name: BorisPoster
